@@ -2,31 +2,39 @@ import os
 from configparser import ConfigParser
 
 CONFIG_PATH = os.path.expanduser("~/.config/mimeapps.list")
+SECTION = "Default Applications"
 
-def load_mimeapps():
+
+def read_associations(path=None):
+    """Читает mimeapps.list и возвращает {mime_type: desktop_file}."""
+    path = path or CONFIG_PATH
     parser = ConfigParser()
-    # mimeapps.list может не иметь кавычек, а configparser по умолчанию их ждёт,
-    # поэтому отключаем обработку кавычек и разрешаем дубликаты ключей (если нужно).
-    parser.optionxform = str  # сохранять регистр ключей
-    if os.path.exists(CONFIG_PATH):
-        parser.read(CONFIG_PATH, encoding="utf-8")
-    else:
-        # создадим пустой конфиг, если нет
-        pass
-    return parser
+    parser.optionxform = str
+    if os.path.exists(path):
+        parser.read(path, encoding="utf-8")
+    if SECTION in parser:
+        return dict(parser[SECTION])
+    return {}
 
-def save_mimeapps(parser):
-    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+
+def merge_associations(base, override):
+    """Объединяет два словаря; при совпадении ключей побеждает override."""
+    result = dict(base)
+    result.update(override)
+    return result
+
+
+def write_associations(associations, path=None):
+    """Записывает словарь ассоциаций в mimeapps.list."""
+    path = path or CONFIG_PATH
+    parser = ConfigParser()
+    parser.optionxform = str
+    if os.path.exists(path):
+        parser.read(path, encoding="utf-8")
+    if SECTION in parser:
+        parser.remove_section(SECTION)
+    parser.add_section(SECTION)
+    for mime, desktop in associations.items():
+        parser[SECTION][mime] = desktop
+    with open(path, "w", encoding="utf-8") as f:
         parser.write(f)
-
-def set_default_app(mime_type, desktop_file):
-    parser = load_mimeapps()
-    section = "Default Applications"
-    if section not in parser:
-        parser.add_section(section)
-    parser[section][mime_type] = desktop_file
-    save_mimeapps(parser)
-
-if __name__ == "__main__":
-    # Пример: меняем дефолтное приложение для text/plain на code.desktop
-    set_default_app("text/plain", "code.desktop")
